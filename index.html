@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#06080d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="AstraWeather - Modern weather forecast powered by Open-Meteo API with real-time 3D Three.js climate visuals for sunny, rainy, and cloudy weather." />
+    <title>AstraWeather · Planetary Climate Intelligence</title>
+        <!-- Jupiter Typography: Manrope font family from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="climate-sunny">
+    <!-- 3D Three.js Background Container -->
+    <div id="weather-canvas-container" aria-label="3D Weather Climate Simulation"></div>
+
+    <!-- Sky Gradient & Subtle Vignette Overlay -->
+    <div class="sky-overlay" id="sky-overlay"></div>
+
+    <!-- Full-Screen Dynamic Lightning Flash Overlay -->
+    <div class="lightning-flash-overlay" id="lightning-flash-overlay" aria-hidden="true"></div>
+
+    <!-- Main Application UI Wrapper -->
+    <div class="app-layout" id="app-layout">
+      <!-- Top Header Navigation (Jupiter Style) -->
+      <header class="app-header">
+        <div class="header-brand">
+          <div class="brand-icon" id="brand-weather-icon">
+            <!-- Injected via JS -->
+          </div>
+          <div class="brand-meta">
+            <h1 class="brand-title">Astra<span class="brand-weather-text">Weather</span><span class="jupiter-dot">.</span></h1>
+            <span class="brand-subtitle">Planetary Weather</span>
+          </div>
+        </div>
+
+        <!-- Global City Search -->
+        <div class="search-section">
+          <div class="search-input-wrapper">
+            <span class="search-icon" aria-hidden="true" id="search-icon-placeholder"></span>
+            <input
+              type="text"
+              id="city-search-input"
+              class="city-search-input"
+              placeholder="Search city, state or country..."
+              autocomplete="off"
+              spellcheck="false"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="search-results"
+              aria-label="Search city or location"
+            />
+            <button id="clear-search-btn" class="clear-search-btn hidden" aria-label="Clear search input">✕</button>
+            <button id="geo-btn" class="geo-btn" title="Use current location" aria-label="Detect current location">
+              <span id="geo-icon-placeholder"></span>
+            </button>
+          </div>
+          <!-- Live Autocomplete Results Dropdown -->
+          <ul id="search-results" class="search-results-dropdown hidden" role="listbox" aria-label="City search suggestions"></ul>
+        </div>
+
+        <!-- Controls Toolbar -->
+        <div class="header-controls">
+          <button id="sound-toggle-btn" class="control-pill-btn sound-btn" title="Toggle Ambient Weather Sound" aria-label="Toggle ambient weather sound">
+            <span class="sound-icon-box" id="sound-icon-box"></span>
+            <span class="sound-text" id="sound-text">Sound: OFF</span>
+          </button>
+          <button id="unit-toggle-btn" class="control-pill-btn unit-btn" title="Toggle °C / °F">
+            <span class="unit-text active" data-unit="celsius">°C</span>
+            <span class="unit-divider">/</span>
+            <span class="unit-text" data-unit="fahrenheit">°F</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Quick Toolbar: Popular Cities -->
+      <section class="quick-toolbar">
+        <div class="city-chips" aria-label="Popular Cities">
+          <span class="toolbar-label">Quick Jump:</span>
+          <button class="city-chip" data-lat="35.6895" data-lon="139.6917" data-name="Tokyo" data-country="Japan">Tokyo</button>
+          <button class="city-chip" data-lat="40.7128" data-lon="-74.0060" data-name="New York" data-country="United States">New York</button>
+          <button class="city-chip" data-lat="51.5074" data-lon="-0.1278" data-name="London" data-country="United Kingdom">London</button>
+          <button class="city-chip" data-lat="48.8566" data-lon="2.3522" data-name="Paris" data-country="France">Paris</button>
+          <button class="city-chip" data-lat="-33.8688" data-lon="151.2093" data-name="Sydney" data-country="Australia">Sydney</button>
+          <button class="city-chip" data-lat="25.2048" data-lon="55.2708" data-name="Dubai" data-country="United Arab Emirates">Dubai</button>
+        </div>
+      </section>
+
+      <!-- Dashboard View Navigation Tabs: Weather vs Air Quality (AQI) -->
+      <nav class="view-tabs-nav" aria-label="Dashboard Views">
+        <div class="tabs-list" role="tablist" aria-label="Planetary intelligence modes">
+          <button
+            id="tab-weather"
+            class="tab-btn active"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-weather"
+            tabindex="0"
+          >
+            <span class="tab-btn-icon" id="tab-weather-icon"></span>
+            <span class="tab-btn-text">Weather Forecast</span>
+          </button>
+          <button
+            id="tab-aqi"
+            class="tab-btn"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-aqi"
+            tabindex="-1"
+          >
+            <span class="tab-btn-icon" id="tab-aqi-icon"></span>
+            <span class="tab-btn-text">Air Quality (AQI)</span>
+            <span class="tab-badge" id="tab-aqi-badge">AQI --</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Loading Spinner / Error Banner -->
+      <div id="status-banner" class="status-banner hidden" role="status" aria-live="polite"></div>
+
+      <!-- 1. WEATHER FORECAST DASHBOARD (WEATHER TAB) -->
+      <main class="dashboard-grid tab-panel active" id="panel-weather" role="tabpanel" aria-labelledby="tab-weather">
+        <!-- LEFT COLUMN: Hero & Forecasts -->
+        <div class="dashboard-col col-primary">
+          <!-- 1. Hero Current Weather Card (Jupiter Style) -->
+          <article class="glass-card hero-weather-card" id="hero-card-article">
+            <!-- Jupiter Capsule Badge Row -->
+            <div class="hero-category-row">
+              <span class="jupiter-badge">Live Intelligence</span>
+              <div class="weather-badge" id="hero-weather-badge">
+                <span class="badge-icon" id="hero-condition-icon"></span>
+                <span class="badge-text" id="hero-condition-text">Clear</span>
+              </div>
+            </div>
+
+            <!-- Jupiter-style Massive Headline with Coral Accent Dot -->
+            <h2 class="jupiter-hero-heading">
+              Real-time climate intelligence for <span id="hero-heading-city">Tokyo</span><span class="jupiter-dot">.</span>
+            </h2>
+
+            <div class="hero-top-bar">
+              <div class="location-details">
+                <div class="location-title-row">
+                  <span class="city-name" id="hero-city-name">Loading...</span>
+                  <span class="country-tag" id="hero-country-tag">--</span>
+                </div>
+                <div class="time-row">
+                  <span class="local-time" id="hero-local-time">--:--</span>
+                  <span class="meta-dot">·</span>
+                  <span class="local-date" id="hero-local-date">----</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Big Temperature Hero Display -->
+            <div class="hero-temperature-row">
+              <div class="temp-big-wrapper">
+                <span class="temp-value" id="hero-temp-val">--</span>
+                <span class="temp-degree">°</span>
+              </div>
+              <div class="temp-meta">
+                <div class="feels-like-row">
+                  <span class="meta-label">Feels like</span>
+                  <span class="meta-val" id="hero-feels-like">--°</span>
+                </div>
+                <div class="high-low-row">
+                  <span class="high-pill" id="hero-high-temp">H: --°</span>
+                  <span class="low-pill" id="hero-low-temp">L: --°</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick glance highlights banner -->
+            <div class="hero-highlights-strip">
+              <div class="highlight-item">
+                <span class="hl-label">Precipitation</span>
+                <span class="hl-value" id="hero-precip-val">0.0 mm</span>
+              </div>
+              <div class="highlight-item">
+                <span class="hl-label">Wind</span>
+                <span class="hl-value" id="hero-wind-val">-- km/h</span>
+              </div>
+              <div class="highlight-item">
+                <span class="hl-label">Humidity</span>
+                <span class="hl-value" id="hero-humidity-val">--%</span>
+              </div>
+              <div class="highlight-item">
+                <span class="hl-label">UV Index</span>
+                <span class="hl-value" id="hero-uv-val">--</span>
+              </div>
+              <button class="highlight-item highlight-btn aqi-shortcut-btn" id="hero-aqi-shortcut" title="Switch to Air Quality (AQI) tab" type="button">
+                <span class="hl-label">Air Quality</span>
+                <span class="hl-value hl-aqi-val" id="hero-aqi-hl-val">--</span>
+                <span class="hl-tag" id="hero-aqi-tag">View AQI →</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- 2. Hourly 24-Hour Forecast Timeline -->
+          <section class="glass-card hourly-forecast-card" id="hourly-forecast-section" aria-label="Hourly Forecast">
+            <div class="card-header">
+              <h3 class="card-title">Hourly Forecast</h3>
+              <span class="card-subtitle">Next 24 Hours</span>
+            </div>
+            <div class="hourly-scroll-container" id="hourly-scroll-track" tabindex="0">
+              <!-- Dynamically populated hourly items -->
+            </div>
+          </section>
+
+          <!-- 3. 7-Day Forecast Card -->
+          <section class="glass-card daily-forecast-card" id="daily-forecast-section" aria-label="7-Day Daily Forecast">
+            <div class="card-header">
+              <h3 class="card-title">7-Day Forecast</h3>
+              <span class="card-subtitle">Open-Meteo Predictions</span>
+            </div>
+            <div class="daily-forecast-list" id="daily-forecast-list">
+              <!-- Dynamically populated daily rows -->
+            </div>
+          </section>
+        </div>
+
+        <!-- RIGHT COLUMN: Detailed Metrics Grid -->
+        <div class="dashboard-col col-secondary">
+          <!-- Metric 1: Wind Direction Compass -->
+          <article class="glass-card metric-card wind-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="wind-icon-box"></span>
+              <h4 class="metric-title">Wind & Compass</h4>
+            </div>
+            <div class="metric-body wind-body">
+              <div class="wind-main">
+                <div class="wind-speed-display">
+                  <span class="metric-main-val" id="metric-wind-speed">--</span>
+                  <span class="metric-unit" id="metric-wind-unit">km/h</span>
+                </div>
+                <div class="wind-direction-pill">
+                  <span class="compass-dir-dot"></span>
+                  <span class="wind-direction-badge" id="metric-wind-dir-text">--</span>
+                </div>
+              </div>
+              <!-- High-Precision Wind Direction Compass -->
+              <div class="compass-widget" aria-label="Wind Compass Direction">
+                <svg viewBox="0 0 160 160" class="compass-dial-svg">
+                  <!-- Outer dial border & concentric gauge rings -->
+                  <circle cx="80" cy="80" r="74" fill="rgba(255, 255, 255, 0.02)" stroke="rgba(255, 255, 255, 0.12)" stroke-width="1.5" />
+                  <circle cx="80" cy="80" r="66" fill="none" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1" stroke-dasharray="2 3" />
+                  <circle cx="80" cy="80" r="44" fill="rgba(255, 255, 255, 0.01)" stroke="rgba(255, 255, 255, 0.06)" stroke-width="1" />
+                  
+                  <!-- Compass Degree Scale Ticks (Every 30 degrees) -->
+                  <g class="compass-ticks" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.2">
+                    <line x1="80" y1="9" x2="80" y2="18" stroke="var(--jupiter-coral)" stroke-width="2.5" />
+                    <line x1="115" y1="18" x2="111" y2="25" />
+                    <line x1="141" y1="44" x2="134" y2="48" />
+                    <line x1="151" y1="80" x2="142" y2="80" stroke="#ffffff" stroke-width="2" />
+                    <line x1="141" y1="116" x2="134" y2="112" />
+                    <line x1="115" y1="142" x2="111" y2="135" />
+                    <line x1="80" y1="151" x2="80" y2="142" stroke="#ffffff" stroke-width="2" />
+                    <line x1="45" y1="142" x2="49" y2="135" />
+                    <line x1="19" y1="116" x2="26" y2="112" />
+                    <line x1="9" y1="80" x2="18" y2="80" stroke="#ffffff" stroke-width="2" />
+                    <line x1="19" y1="44" x2="26" y2="48" />
+                    <line x1="45" y1="18" x2="49" y2="25" />
+                  </g>
+
+                  <!-- Cardinal & Ordinal Points -->
+                  <text x="80" y="27" class="cardinal c-north" text-anchor="middle">N</text>
+                  <text x="135" y="85" class="cardinal" text-anchor="middle">E</text>
+                  <text x="80" y="141" class="cardinal" text-anchor="middle">S</text>
+                  <text x="25" y="85" class="cardinal" text-anchor="middle">W</text>
+
+                  <text x="119" y="44" class="ordinal" text-anchor="middle">NE</text>
+                  <text x="119" y="125" class="ordinal" text-anchor="middle">SE</text>
+                  <text x="41" y="125" class="ordinal" text-anchor="middle">SW</text>
+                  <text x="41" y="44" class="ordinal" text-anchor="middle">NW</text>
+
+                  <!-- Rotating Compass Needle -->
+                  <g id="compass-needle" class="compass-needle-group" style="transform-origin: 80px 80px; transform: rotate(0deg);">
+                    <!-- North Arrowhead in Jupiter Coral -->
+                    <polygon points="80,24 87,74 80,70 73,74" fill="var(--jupiter-coral)" />
+                    <!-- South Arrowhead in Frosted Silver -->
+                    <polygon points="80,136 87,86 80,90 73,86" fill="rgba(255, 255, 255, 0.45)" />
+                    <!-- Needle Pivot Center -->
+                    <circle cx="80" cy="80" r="8" fill="#121522" stroke="var(--jupiter-coral)" stroke-width="2" />
+                    <circle cx="80" cy="80" r="3.5" fill="#ffffff" />
+                  </g>
+                </svg>
+              </div>
+            </div>
+            <div class="metric-footer" id="metric-wind-footer">
+              Steady breeze
+            </div>
+          </article>
+
+          <!-- Metric 2: UV Index -->
+          <article class="glass-card metric-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="uv-icon-box"></span>
+              <h4 class="metric-title">UV Index</h4>
+            </div>
+            <div class="metric-body">
+              <div class="metric-main">
+                <span class="metric-main-val" id="metric-uv-val">--</span>
+                <span class="status-pill" id="metric-uv-pill">Low</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill uv-fill" id="metric-uv-bar" style="width: 20%;"></div>
+              </div>
+            </div>
+            <div class="metric-footer" id="metric-uv-advice">
+              Minimal protection needed
+            </div>
+          </article>
+
+          <!-- Metric 3: Humidity & Dew Point -->
+          <article class="glass-card metric-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="humidity-icon-box"></span>
+              <h4 class="metric-title">Humidity</h4>
+            </div>
+            <div class="metric-body">
+              <div class="metric-main">
+                <span class="metric-main-val" id="metric-humidity-val">--</span>
+                <span class="metric-unit">%</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill humidity-fill" id="metric-humidity-bar" style="width: 50%;"></div>
+              </div>
+            </div>
+            <div class="metric-footer" id="metric-humidity-footer">
+              The dew point is --°
+            </div>
+          </article>
+
+          <!-- Metric 4: Sunrise & Sunset Arc -->
+          <article class="glass-card metric-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="sun-icon-box"></span>
+              <h4 class="metric-title">Sun Cycle</h4>
+            </div>
+            <div class="metric-body sun-cycle-body">
+              <div class="sun-times-row">
+                <div class="sun-time-block">
+                  <span class="sun-sub-label">Sunrise</span>
+                  <span class="sun-sub-val" id="metric-sunrise-val">--:--</span>
+                </div>
+                <div class="sun-time-block right">
+                  <span class="sun-sub-label">Sunset</span>
+                  <span class="sun-sub-val" id="metric-sunset-val">--:--</span>
+                </div>
+              </div>
+              <!-- Sun Celestial Arc Graphic -->
+              <div class="sun-arc-wrapper">
+                <svg viewBox="0 0 100 45" class="sun-arc-svg">
+                  <path d="M 10 40 A 40 30 0 0 1 90 40" fill="none" stroke="rgba(255,255,255,0.2)" stroke-dasharray="3,3" stroke-width="2"/>
+                  <path id="sun-arc-progress" d="M 10 40 A 40 30 0 0 1 50 10" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
+                  <circle id="sun-arc-dot" cx="50" cy="10" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1.5"/>
+                </svg>
+              </div>
+            </div>
+            <div class="metric-footer" id="metric-sun-footer">
+              Daylight remaining
+            </div>
+          </article>
+
+          <!-- Metric 5: Pressure & Cloud Cover -->
+          <article class="glass-card metric-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="pressure-icon-box"></span>
+              <h4 class="metric-title">Pressure & Clouds</h4>
+            </div>
+            <div class="metric-body dual-metric-body">
+              <div class="half-metric">
+                <span class="sub-metric-val" id="metric-pressure-val">--</span>
+                <span class="sub-metric-unit">hPa</span>
+                <span class="sub-metric-label">Pressure</span>
+              </div>
+              <div class="metric-divider"></div>
+              <div class="half-metric">
+                <span class="sub-metric-val" id="metric-clouds-val">--</span>
+                <span class="sub-metric-unit">%</span>
+                <span class="sub-metric-label">Cloud Cover</span>
+              </div>
+            </div>
+            <div class="metric-footer" id="metric-pressure-footer">
+              Standard barometric pressure
+            </div>
+          </article>
+        </div>
+      </main>
+
+      <!-- 2. AIR QUALITY INTELLIGENCE DASHBOARD (AQI TAB) -->
+      <section class="dashboard-grid tab-panel aqi-dashboard-panel hidden" id="panel-aqi" role="tabpanel" aria-labelledby="tab-aqi">
+        <!-- LEFT COLUMN: AQI Hero & Hourly Projection -->
+        <div class="dashboard-col col-primary">
+          <!-- 1. Hero Air Quality Card (Liquid Glass & Jupiter Typography) -->
+          <article class="glass-card hero-weather-card hero-aqi-card" id="hero-aqi-card-article">
+            <!-- Jupiter Capsule Badge Row -->
+            <div class="hero-category-row">
+              <span class="jupiter-badge">Atmospheric Intelligence</span>
+              <div class="weather-badge aqi-badge" id="aqi-hero-badge">
+                <span class="badge-icon" id="aqi-condition-icon"></span>
+                <span class="badge-text" id="aqi-condition-text">Moderate</span>
+              </div>
+            </div>
+
+            <!-- Jupiter-style Massive Headline with Coral Accent Dot -->
+            <h2 class="jupiter-hero-heading">
+              Air quality in <span id="aqi-heading-city">Tokyo</span> is <span id="aqi-hero-status-word">Moderate</span><span class="jupiter-dot">.</span>
+            </h2>
+
+            <div class="hero-top-bar">
+              <div class="location-details">
+                <div class="location-title-row">
+                  <span class="city-name" id="aqi-city-name">Loading...</span>
+                  <span class="country-tag" id="aqi-country-tag">--</span>
+                </div>
+                <div class="time-row">
+                  <span class="local-time" id="aqi-local-time">--:--</span>
+                  <span class="meta-dot">·</span>
+                  <span class="local-date" id="aqi-local-date">----</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- AQI Radial Arc Gauge & Score Display -->
+            <div class="aqi-gauge-container">
+              <div class="aqi-gauge-widget">
+                <div class="aqi-gauge-visual">
+                  <svg viewBox="0 0 220 135" class="aqi-radial-gauge-svg" aria-label="AQI Radial Scale Gauge">
+                    <!-- Dial Background Arc -->
+                    <path d="M 26 118 A 84 84 0 0 1 194 118" fill="none" stroke="rgba(255, 255, 255, 0.08)" stroke-width="14" stroke-linecap="round" />
+                    <!-- Colored Progress Arc -->
+                    <path id="aqi-gauge-progress" d="M 26 118 A 84 84 0 0 1 194 118" fill="none" stroke="var(--jupiter-coral)" stroke-width="14" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="132" />
+                  </svg>
+                  <div class="aqi-gauge-center">
+                    <span class="aqi-number-main" id="aqi-gauge-val">--</span>
+                    <span class="aqi-unit-label">US AQI</span>
+                  </div>
+                </div>
+                <div class="aqi-status-pill-row">
+                  <span class="aqi-center-pill" id="aqi-gauge-pill">Moderate</span>
+                </div>
+              </div>
+
+              <!-- AQI Meta Details -->
+              <div class="aqi-meta-details">
+                <div class="aqi-dual-standard">
+                  <div class="standard-item">
+                    <span class="std-label">EPA Standard</span>
+                    <span class="std-val" id="aqi-epa-val">-- / 500</span>
+                  </div>
+                  <div class="std-divider"></div>
+                  <div class="standard-item">
+                    <span class="std-label">European Index</span>
+                    <span class="std-val" id="aqi-eaqi-val">-- (EAQI)</span>
+                  </div>
+                </div>
+
+                <div class="aqi-dominant-pill" id="aqi-dominant-pill">
+                  <span class="dom-icon" id="aqi-dom-icon"></span>
+                  <span class="dom-text">Primary Pollutant: <strong id="aqi-dominant-pollutant">PM2.5</strong></span>
+                </div>
+
+                <p class="aqi-narrative-summary" id="aqi-narrative-text">
+                  Loading atmospheric and air quality intelligence...
+                </p>
+              </div>
+            </div>
+
+            <!-- Health Advisory & Sensitive Groups Recommendation Cards -->
+            <div class="aqi-health-recommendations">
+              <h4 class="aqi-section-title">Health & Activity Advisory</h4>
+              <div class="aqi-advisory-grid">
+                <div class="advisory-card" id="advisory-card-exercise">
+                  <div class="advisory-icon" id="adv-icon-exercise"></div>
+                  <div class="advisory-content">
+                    <span class="adv-label">Outdoor Exercise</span>
+                    <span class="adv-text" id="adv-text-exercise">Safe for most activities</span>
+                  </div>
+                </div>
+                <div class="advisory-card" id="advisory-card-mask">
+                  <div class="advisory-icon" id="adv-icon-mask"></div>
+                  <div class="advisory-content">
+                    <span class="adv-label">Face Mask</span>
+                    <span class="adv-text" id="adv-text-mask">Not required</span>
+                  </div>
+                </div>
+                <div class="advisory-card" id="advisory-card-ventilation">
+                  <div class="advisory-icon" id="adv-icon-ventilation"></div>
+                  <div class="advisory-content">
+                    <span class="adv-label">Ventilation</span>
+                    <span class="adv-text" id="adv-text-ventilation">Safe to open windows</span>
+                  </div>
+                </div>
+                <div class="advisory-card" id="advisory-card-purifier">
+                  <div class="advisory-icon" id="adv-icon-purifier"></div>
+                  <div class="advisory-content">
+                    <span class="adv-label">Air Purifier</span>
+                    <span class="adv-text" id="adv-text-purifier">Optional indoors</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <!-- 2. Hourly 24-Hour AQI Trend Timeline -->
+          <section class="glass-card hourly-forecast-card hourly-aqi-card" id="hourly-aqi-section" aria-label="Hourly Air Quality Forecast">
+            <div class="card-header">
+              <h3 class="card-title">24-Hour Air Quality Forecast</h3>
+              <span class="card-subtitle">Projected AQI & Particulate Density</span>
+            </div>
+            <div class="hourly-scroll-container" id="hourly-aqi-scroll-track" tabindex="0">
+              <!-- Dynamically populated hourly AQI items -->
+            </div>
+          </section>
+        </div>
+
+        <!-- RIGHT COLUMN: Pollutant Breakdown & AQI Scale Guide -->
+        <div class="dashboard-col col-secondary">
+          <!-- 1. Detailed Pollutants Breakdown -->
+          <article class="glass-card metric-card aqi-pollutants-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="pollutants-icon-box"></span>
+              <h4 class="metric-title">Atmospheric Pollutants</h4>
+            </div>
+            <div class="metric-body pollutants-body" id="pollutants-container">
+              <!-- Dynamically populated 6 key pollutants -->
+            </div>
+            <div class="metric-footer" id="pollutants-footer">
+              Benchmarked against World Health Organization (WHO) air quality guidelines
+            </div>
+          </article>
+
+          <!-- 2. US EPA AQI Health Scale Reference -->
+          <article class="glass-card metric-card aqi-scale-card">
+            <div class="metric-header">
+              <span class="metric-icon" id="scale-icon-box"></span>
+              <h4 class="metric-title">AQI Health Scale Reference</h4>
+            </div>
+            <div class="metric-body scale-body">
+              <div class="scale-tiers-list" id="aqi-scale-tiers">
+                <div class="scale-tier-row tier-1" data-tier="1">
+                  <span class="tier-range">0 – 50</span>
+                  <span class="tier-badge badge-good">Good</span>
+                  <span class="tier-desc">Satisfactory, little to no risk</span>
+                </div>
+                <div class="scale-tier-row tier-2" data-tier="2">
+                  <span class="tier-range">51 – 100</span>
+                  <span class="tier-badge badge-mod">Moderate</span>
+                  <span class="tier-desc">Acceptable; minor sensitivity</span>
+                </div>
+                <div class="scale-tier-row tier-3" data-tier="3">
+                  <span class="tier-range">101 – 150</span>
+                  <span class="tier-badge badge-sens">Sensitive</span>
+                  <span class="tier-desc">Sensitive groups may feel effects</span>
+                </div>
+                <div class="scale-tier-row tier-4" data-tier="4">
+                  <span class="tier-range">151 – 200</span>
+                  <span class="tier-badge badge-unhealthy">Unhealthy</span>
+                  <span class="tier-desc">Everyone may feel health effects</span>
+                </div>
+                <div class="scale-tier-row tier-5" data-tier="5">
+                  <span class="tier-range">201 – 300</span>
+                  <span class="tier-badge badge-vunhealthy">Very Unhealthy</span>
+                  <span class="tier-desc">Health alert: Increased risk for all</span>
+                </div>
+                <div class="scale-tier-row tier-6" data-tier="6">
+                  <span class="tier-range">301+</span>
+                  <span class="tier-badge badge-hazardous">Hazardous</span>
+                  <span class="tier-desc">Health warnings of emergency status</span>
+                </div>
+              </div>
+            </div>
+            <div class="metric-footer">
+              United States Environmental Protection Agency (US EPA) standard index
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- App Footer -->
+      <footer class="app-footer">
+        <div class="footer-creator">
+          Made with <span class="heart-icon" role="img" aria-label="love"><svg class="heart-svg" viewBox="0 0 24 24" width="18" height="18" fill="#ff113a"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg></span> in India by <span class="creator-name">Tajeshwar Singh</span>
+        </div>
+        <div class="footer-content">
+          <span>Three.js 3D Weather System · Powered by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a></span>
+          <span class="footer-dot">·</span>
+          <span>Real-time planetary climate intelligence & dynamic 3D atmosphere</span>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Script entry point -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
